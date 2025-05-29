@@ -1,0 +1,78 @@
+{
+    "name": "php-refactor-extension",
+    "displayName": "PHP Refactor Helper",
+    "description": "Automatically updates PHP class names and references when files are renamed or moved",
+    "version": "0.0.1",
+    "publisher": "fraserpage",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/fraserpage/php-refactor-extension.git"
+    },
+    "bugs": {
+        "url": "https://github.com/fraserpage/php-refactor-extension/issues"
+    },
+    "homepage": "https://github.com/fraserpage/php-refactor-extension#readme",
+    "keywords": [
+        "php",
+        "refactor",
+        "class",
+        "rename",
+        "references",
+        "namespace"
+    ],
+    "engines": {
+        "vscode": "^1.74.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onLanguage:php"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "phpRefactor.updateClassReferences",
+                "title": "Update PHP Class References"
+            }
+        ],
+        "configuration": {
+            "title": "PHP Refactor Helper",
+            "properties": {
+                "phpRefactor.autoUpdate": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Automatically update class names and references without prompting"
+                },
+                "phpRefactor.showNotifications": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show notifications when refactoring is performed"
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "pretest": "npm run compile && npm run lint",
+        "lint": "eslint src --ext ts",
+        "test": "node ./out/test/runTest.js"
+    },
+    "devDependencies": {
+        "@types/glob": "^8.1.0",
+        "@types/mocha": "^10.0.1",
+        "@types/node": "16.x",
+        "@types/vscode": "^1.74.0",
+        "@typescript-eslint/eslint-plugin": "^5.45.0",
+        "@typescript-eslint/parser": "^5.45.0",
+        "@vscode/test-electron": "^2.2.0",
+        "eslint": "^8.28.0",
+        "glob": "^8.0.3",
+        "mocha": "^10.1.0",
+        "typescript": "^4.9.4"
+    }
+}
