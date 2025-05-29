@@ -164,11 +164,22 @@ async function performRefactoring(uri: vscode.Uri, oldClassName: string, newClas
 
 function getClassNameFromFileName(filePath: string): string {
     const basename = path.basename(filePath, '.php');
-    // Convert kebab-case or snake_case to PascalCase
-    return basename
-        .split(/[-_]/)
-        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-        .join('');
+    
+    // If the filename contains hyphens, underscores, or dots, convert to PascalCase
+    if (basename.includes('-') || basename.includes('_') || basename.includes('.')) {
+        return basename
+            .split(/[-_.]+/)
+            .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+            .join('');
+    }
+    
+    // If the filename is all lowercase, capitalize the first letter
+    if (basename === basename.toLowerCase()) {
+        return basename.charAt(0).toUpperCase() + basename.slice(1);
+    }
+    
+    // If the filename already has mixed case (likely PascalCase), return as-is
+    return basename;
 }
 
 function extractPHPClass(content: string): PHPClass | null {

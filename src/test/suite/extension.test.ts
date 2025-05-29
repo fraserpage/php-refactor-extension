@@ -7,11 +7,22 @@ import * as path from 'path';
 // For testing purposes, we'll recreate the key functions here
 function getClassNameFromFileName(filePath: string): string {
     const basename = path.basename(filePath, '.php');
-    // Convert kebab-case or snake_case to PascalCase
-    return basename
-        .split(/[-_]/)
-        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-        .join('');
+    
+    // If the filename contains hyphens, underscores, or dots, convert to PascalCase
+    if (basename.includes('-') || basename.includes('_') || basename.includes('.')) {
+        return basename
+            .split(/[-_.]+/)
+            .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+            .join('');
+    }
+    
+    // If the filename is all lowercase, capitalize the first letter
+    if (basename === basename.toLowerCase()) {
+        return basename.charAt(0).toUpperCase() + basename.slice(1);
+    }
+    
+    // If the filename already has mixed case (likely PascalCase), return as-is
+    return basename;
 }
 
 interface PHPClass {
@@ -64,13 +75,30 @@ suite('Extension Test Suite', () => {
         });
 
         test('should handle mixed case input', () => {
-            assert.strictEqual(getClassNameFromFileName('UserService.php'), 'Userservice');
+            assert.strictEqual(getClassNameFromFileName('UserService.php'), 'UserService');
             assert.strictEqual(getClassNameFromFileName('user-Service.php'), 'UserService');
         });
 
         test('should handle single character parts', () => {
             assert.strictEqual(getClassNameFromFileName('a-b-c.php'), 'ABC');
             assert.strictEqual(getClassNameFromFileName('x_y_z.php'), 'XYZ');
+        });
+
+        test('should preserve already-PascalCase filenames', () => {
+            assert.strictEqual(getClassNameFromFileName('StoreFinancialAidRequestRequest.php'), 'StoreFinancialAidRequestRequest');
+            assert.strictEqual(getClassNameFromFileName('UserController.php'), 'UserController');
+            assert.strictEqual(getClassNameFromFileName('APIService.php'), 'APIService');
+        });
+
+        test('should handle edge cases', () => {
+            assert.strictEqual(getClassNameFromFileName('user.php'), 'User');
+            assert.strictEqual(getClassNameFromFileName('API.php'), 'API');
+            assert.strictEqual(getClassNameFromFileName('lowercase.php'), 'Lowercase');
+        });
+
+        test('should handle filename with multiple dots', () => {
+            const result = getClassNameFromFileName('user.service.php');
+            assert.strictEqual(result, 'UserService');
         });
     });
 
@@ -276,7 +304,7 @@ class UserController
 
         test('should handle filename with multiple dots', () => {
             const result = getClassNameFromFileName('user.service.php');
-            assert.strictEqual(result, 'User.service');
+            assert.strictEqual(result, 'UserService');
         });
     });
 }); 
