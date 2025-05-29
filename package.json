@@ -2,7 +2,7 @@
     "name": "php-refactor-extension",
     "displayName": "PHP Refactor Helper",
     "description": "Automatically updates PHP class names and references when files are renamed or moved",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "publisher": "fraserpage",
     "license": "MIT",
     "repository": {
