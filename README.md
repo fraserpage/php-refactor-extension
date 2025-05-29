@@ -6,12 +6,14 @@ A VS Code extension that automatically watches for PHP file renames/moves and of
 
 - **Automatic File Watching**: Monitors PHP files for rename and move operations
 - **Smart Class Name Detection**: Extracts class names from PHP files and compares with filename conventions
+- **Namespace Management**: Automatically updates namespace declarations when files are moved between directories
 - **Reference Finding**: Searches across all PHP files for class references including:
   - Class instantiation (`new ClassName()`)
   - Static method calls (`ClassName::method()`)
   - Use statements (`use Namespace\ClassName`)
   - Class inheritance (`extends ClassName`)
   - Interface implementation (`implements ClassName`)
+  - Fully qualified class names (`App\Services\ClassName::method()`)
 - **Batch Updates**: Updates all references in a single operation
 - **Manual Refactoring**: Command to manually trigger refactoring for the current file
 - **Configurable Behavior**: Settings to control automatic updates and notifications
@@ -51,6 +53,9 @@ Access settings via `File > Preferences > Settings` and search for "PHP Refactor
 - `phpRefactor.showNotifications`: Show notifications when refactoring is performed (default: true)
 - `phpRefactor.enableLaravelConventions`: Apply Laravel naming conventions based on directory structure (default: true)
 - `phpRefactor.laravelDirectories`: Configure Laravel component directory patterns
+- `phpRefactor.updateNamespaces`: Automatically update namespace declarations when files are moved to different directories (default: true)
+- `phpRefactor.rootNamespace`: The root namespace for your PHP project (default: "App")
+- `phpRefactor.srcDirectory`: The source directory containing your PHP classes (default: "app")
 
 ## Laravel Integration
 
@@ -108,6 +113,13 @@ After:  Rename file to UserManager.php
 Result: Extension prompts to rename class to "UserManager" and update all references
 ```
 
+### File Move with Namespace Update
+```
+Before: app/Services/UserService.php with "namespace App\Services;"
+After:  Move to app/Http/Services/UserService.php
+Result: Extension updates namespace to "App\Http\Services" and all use statements
+```
+
 ### Class Name Alignment
 ```
 Before: user-service.php containing "class SomeClass"
@@ -129,6 +141,28 @@ use App\Services\UserManager;
 $service = new UserManager();
 UserManager::staticMethod();
 class Controller extends UserManager {}
+```
+
+### Namespace Updates
+When `UserService` is moved from `app/Services/` to `app/Http/Services/`:
+```php
+// File: app/Http/Services/UserService.php
+// Before
+<?php
+namespace App\Services;
+class UserService {}
+
+// After  
+<?php
+namespace App\Http\Services;
+class UserService {}
+
+// Other files with references
+// Before
+use App\Services\UserService;
+
+// After
+use App\Http\Services\UserService;
 ```
 
 ## File Naming Conventions

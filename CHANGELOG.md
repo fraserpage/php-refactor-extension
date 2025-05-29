@@ -5,6 +5,40 @@ All notable changes to the "php-refactor-extension" extension will be documented
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.3] - 2025-01-29
+
+### ✨ Added
+- **Namespace Auto-Update**: Automatically updates namespace declarations when PHP files are moved between directories
+  - Detects directory changes and calculates new namespaces based on project structure
+  - Updates `namespace` declarations in moved files
+  - Updates all `use` statements across the entire workspace with new fully qualified names
+  - Configurable root namespace and source directory settings
+- **Enhanced Reference Detection**: Improved reference finding with categorized patterns
+  - Categorizes references by type (use statements, static calls, instantiation, etc.)
+  - Better handling of fully qualified class names in references
+  - Enhanced Laravel-specific reference patterns
+- **Configuration Options**: 
+  - `phpRefactor.updateNamespaces`: Enable/disable automatic namespace updates (default: true)
+  - `phpRefactor.rootNamespace`: Set project root namespace (default: "App")  
+  - `phpRefactor.srcDirectory`: Set source directory path (default: "app")
+- **Comprehensive Test Coverage**: Added 18+ new tests for namespace functionality
+  - Namespace detection from file paths
+  - Directory change detection logic
+  - Fully qualified name handling
+  - Edge case coverage for various path formats
+
+### 🚀 Enhanced  
+- **Move Detection**: Now distinguishes between simple renames and directory moves
+- **Reference Updates**: Smarter handling of different reference types during updates
+- **User Messages**: More descriptive prompts showing both class name and namespace changes
+- **Error Handling**: Better validation and error reporting for namespace operations
+
+### 🔧 Technical
+- Added `ReferenceLocation` type classification for better reference handling
+- Enhanced `PHPClass` interface with fully qualified name support
+- Improved path normalization for cross-platform compatibility
+- Better regex patterns for namespace and use statement matching
+
 ## [0.0.2] - 2025-01-29
 
 ### ✨ Added

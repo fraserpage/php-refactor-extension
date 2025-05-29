@@ -6,6 +6,7 @@ interface PHPClass {
     name: string;
     namespace?: string;
     line: number;
+    fullQualifiedName?: string;
 }
 
 interface ReferenceLocation {
@@ -13,6 +14,7 @@ interface ReferenceLocation {
     line: number;
     column: number;
     text: string;
+    type: 'use' | 'new' | 'static' | 'extends' | 'implements' | 'other';
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -61,7 +63,7 @@ async function handlePossibleRename(newUri: vscode.Uri) {
     const newPath = newUri.fsPath;
     const newClassName = getClassNameFromFileName(newPath);
 
-    // Check if any recently deleted file had a different class name
+    // Check if any recently deleted file had a different class name or was in a different directory
     const fiveSecondsAgo = Date.now() - 5000;
     const recentDeletions = Array.from(recentlyDeleted.entries())
         .filter(([_, time]) => time > fiveSecondsAgo)
@@ -69,9 +71,15 @@ async function handlePossibleRename(newUri: vscode.Uri) {
 
     for (const oldPath of recentDeletions) {
         const oldClassName = getClassNameFromFileName(oldPath);
-        if (oldClassName !== newClassName) {
-            // This looks like a rename that might need refactoring
-            await promptForRefactoring(newUri, oldClassName, newClassName);
+        const oldDirectory = path.dirname(oldPath);
+        const newDirectory = path.dirname(newPath);
+        
+        // Check if this is a move to a different directory or a simple rename
+        const isDirectoryChange = oldDirectory !== newDirectory;
+        const isClassNameChange = oldClassName !== newClassName;
+        
+        if (isDirectoryChange || isClassNameChange) {
+            await promptForRefactoring(newUri, oldPath, oldClassName, newClassName, isDirectoryChange);
             recentlyDeleted.delete(oldPath);
             return;
         }
@@ -81,22 +89,40 @@ async function handlePossibleRename(newUri: vscode.Uri) {
     await checkClassNameAlignment(newUri);
 }
 
-async function promptForRefactoring(uri: vscode.Uri, oldClassName: string, newClassName: string) {
+async function promptForRefactoring(uri: vscode.Uri, oldPath: string, oldClassName: string, newClassName: string, isDirectoryChange: boolean) {
     const config = vscode.workspace.getConfiguration('phpRefactor');
     const autoUpdate = config.get<boolean>('autoUpdate', false);
+    const updateNamespaces = config.get<boolean>('updateNamespaces', true);
+
+    let message = `PHP file ${isDirectoryChange ? 'moved' : 'renamed'}.`;
+    
+    if (oldClassName !== newClassName) {
+        message += ` Update class name from "${oldClassName}" to "${newClassName}"`;
+    }
+    
+    if (isDirectoryChange && updateNamespaces) {
+        const oldNamespace = getNamespaceFromPath(oldPath);
+        const newNamespace = getExpectedNamespace(uri.fsPath);
+        
+        if (oldNamespace !== newNamespace) {
+            if (oldClassName !== newClassName) {
+                message += ` and namespace from "${oldNamespace}" to "${newNamespace}"`;
+            } else {
+                message += ` Update namespace from "${oldNamespace}" to "${newNamespace}"`;
+            }
+        }
+    }
+    
+    message += ` and all references?`;
 
     if (!autoUpdate) {
-        const choice = await vscode.window.showInformationMessage(
-            `PHP file renamed. Update class name from "${oldClassName}" to "${newClassName}" and all references?`,
-            'Yes', 'No'
-        );
-
+        const choice = await vscode.window.showInformationMessage(message, 'Yes', 'No');
         if (choice !== 'Yes') {
             return;
         }
     }
 
-    await performRefactoring(uri, oldClassName, newClassName);
+    await performRefactoring(uri, oldPath, oldClassName, newClassName, isDirectoryChange);
 }
 
 async function checkClassNameAlignment(uri: vscode.Uri) {
@@ -116,7 +142,7 @@ async function checkClassNameAlignment(uri: vscode.Uri) {
         );
 
         if (choice === 'Yes') {
-            await performRefactoring(uri, phpClass.name, expectedClassName);
+            await performRefactoring(uri, uri.fsPath, phpClass.name, expectedClassName, false);
         }
     }
 }
@@ -137,25 +163,41 @@ async function refactorCurrentFile(uri: vscode.Uri) {
         return;
     }
 
-    await performRefactoring(uri, phpClass.name, expectedClassName);
+    await performRefactoring(uri, uri.fsPath, phpClass.name, expectedClassName, false);
 }
 
-async function performRefactoring(uri: vscode.Uri, oldClassName: string, newClassName: string) {
+async function performRefactoring(uri: vscode.Uri, oldPath: string, oldClassName: string, newClassName: string, isDirectoryChange: boolean) {
     try {
-        // Update the class name in the current file
-        await updateClassInFile(uri, oldClassName, newClassName);
+        const config = vscode.workspace.getConfiguration('phpRefactor');
+        const updateNamespaces = config.get<boolean>('updateNamespaces', true);
+        
+        let oldNamespace: string | null = null;
+        let newNamespace: string | null = null;
+        
+        // Determine old and new namespaces if this is a directory change
+        if (isDirectoryChange && updateNamespaces) {
+            oldNamespace = getNamespaceFromPath(oldPath);
+            newNamespace = getExpectedNamespace(uri.fsPath);
+        }
+
+        // Update the class name and namespace in the current file
+        await updateClassInFile(uri, oldClassName, newClassName, oldNamespace || undefined, newNamespace || undefined);
 
         // Find and update all references
-        const references = await findClassReferences(oldClassName);
-        await updateReferences(references, oldClassName, newClassName);
+        const references = await findClassReferences(oldClassName, oldNamespace || undefined);
+        await updateReferences(references, oldClassName, newClassName, oldNamespace || undefined, newNamespace || undefined);
 
-        const config = vscode.workspace.getConfiguration('phpRefactor');
-        const showNotifications = config.get<boolean>('showNotifications', true);
+        const config2 = vscode.workspace.getConfiguration('phpRefactor');
+        const showNotifications = config2.get<boolean>('showNotifications', true);
 
         if (showNotifications) {
-            vscode.window.showInformationMessage(
-                `Refactored class "${oldClassName}" to "${newClassName}". Updated ${references.length} references.`
-            );
+            let message = `Refactored class "${oldClassName}" to "${newClassName}".`;
+            if (oldNamespace && newNamespace && oldNamespace !== newNamespace) {
+                message += ` Updated namespace from "${oldNamespace}" to "${newNamespace}".`;
+            }
+            message += ` Updated ${references.length} references.`;
+            
+            vscode.window.showInformationMessage(message);
         }
     } catch (error) {
         vscode.window.showErrorMessage(`Refactoring failed: ${error}`);
@@ -261,7 +303,7 @@ function extractPHPClass(content: string): PHPClass | null {
     };
 }
 
-async function updateClassInFile(uri: vscode.Uri, oldClassName: string, newClassName: string) {
+async function updateClassInFile(uri: vscode.Uri, oldClassName: string, newClassName: string, oldNamespace?: string, newNamespace?: string) {
     const document = await vscode.workspace.openTextDocument(uri);
     const edit = new vscode.WorkspaceEdit();
 
@@ -270,6 +312,13 @@ async function updateClassInFile(uri: vscode.Uri, oldClassName: string, newClass
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+
+        // Update namespace declaration
+        if (oldNamespace && newNamespace && oldNamespace !== newNamespace && line.match(/^namespace\s+/)) {
+            const newLine = line.replace(/^namespace\s+[^;]+;/, `namespace ${newNamespace};`);
+            const range = new vscode.Range(i, 0, i, line.length);
+            edit.replace(uri, range, newLine);
+        }
 
         // Update class declaration
         if (line.match(new RegExp(`class\\s+${oldClassName}\\b`))) {
@@ -289,7 +338,7 @@ async function updateClassInFile(uri: vscode.Uri, oldClassName: string, newClass
     await vscode.workspace.applyEdit(edit);
 }
 
-async function findClassReferences(className: string): Promise<ReferenceLocation[]> {
+async function findClassReferences(className: string, namespace?: string): Promise<ReferenceLocation[]> {
     const references: ReferenceLocation[] = [];
 
     // Search for references in all PHP files
@@ -303,31 +352,36 @@ async function findClassReferences(className: string): Promise<ReferenceLocation
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
 
+            // Create patterns for both simple class name and fully qualified name
+            const fullyQualifiedName = namespace ? `${namespace}\\${className}` : className;
+            
             // Standard PHP patterns
             const patterns = [
-                new RegExp(`\\b${className}::`), // Static calls
-                new RegExp(`\\bnew\\s+${className}\\b`), // Constructor calls
-                new RegExp(`\\buse\\s+[^;]*\\b${className}\\b`), // Use statements
-                new RegExp(`\\bextends\\s+${className}\\b`), // Inheritance
-                new RegExp(`\\bimplements\\s+[^{]*\\b${className}\\b`), // Interface implementation
-                new RegExp(`\\b${className}\\s*\\(`), // Function-style calls
+                { pattern: new RegExp(`\\b${className}::`), type: 'static' as const },
+                { pattern: new RegExp(`\\bnew\\s+${className}\\b`), type: 'new' as const },
+                { pattern: new RegExp(`\\buse\\s+[^;]*\\b${className}\\b`), type: 'use' as const },
+                { pattern: new RegExp(`\\buse\\s+[^;]*\\b${fullyQualifiedName}\\b`), type: 'use' as const },
+                { pattern: new RegExp(`\\bextends\\s+${className}\\b`), type: 'extends' as const },
+                { pattern: new RegExp(`\\bimplements\\s+[^{]*\\b${className}\\b`), type: 'implements' as const },
+                { pattern: new RegExp(`\\b${className}\\s*\\(`), type: 'other' as const },
                 
                 // Laravel-specific patterns
-                new RegExp(`\\[${className}::class,`), // Route definitions: [UserController::class, 'method']
-                new RegExp(`${className}::class`), // Class constants: User::class
-                new RegExp(`'${className}'`), // String references in config, views, etc.
-                new RegExp(`"${className}"`), // Double-quoted string references
-                new RegExp(`\\$${className.toLowerCase()}`), // Variable names based on class (loose match)
+                { pattern: new RegExp(`\\[${className}::class,`), type: 'other' as const },
+                { pattern: new RegExp(`${className}::class`), type: 'other' as const },
+                { pattern: new RegExp(`'${className}'`), type: 'other' as const },
+                { pattern: new RegExp(`"${className}"`), type: 'other' as const },
+                { pattern: new RegExp(`\\$${className.toLowerCase()}`), type: 'other' as const },
             ];
 
-            for (const pattern of patterns) {
+            for (const { pattern, type } of patterns) {
                 const match = line.match(pattern);
                 if (match) {
                     references.push({
                         file: file.fsPath,
                         line: i,
                         column: match.index || 0,
-                        text: line.trim()
+                        text: line.trim(),
+                        type: type
                     });
                     break; // Only count one match per line to avoid duplicates
                 }
@@ -338,7 +392,7 @@ async function findClassReferences(className: string): Promise<ReferenceLocation
     return references;
 }
 
-async function updateReferences(references: ReferenceLocation[], oldClassName: string, newClassName: string) {
+async function updateReferences(references: ReferenceLocation[], oldClassName: string, newClassName: string, oldNamespace?: string, newNamespace?: string) {
     const fileEdits = new Map<string, vscode.TextEdit[]>();
 
     for (const ref of references) {
@@ -351,11 +405,23 @@ async function updateReferences(references: ReferenceLocation[], oldClassName: s
         const document = await vscode.workspace.openTextDocument(uri);
         const line = document.lineAt(ref.line);
 
-        // Replace the old class name with the new one
-        const newText = line.text.replace(new RegExp(`\\b${oldClassName}\\b`, 'g'), newClassName);
-        const range = new vscode.Range(ref.line, 0, ref.line, line.text.length);
+        let newText = line.text;
 
-        edits.push(vscode.TextEdit.replace(range, newText));
+        // Handle different types of references
+        if (ref.type === 'use' && oldNamespace && newNamespace && oldNamespace !== newNamespace) {
+            // Update use statements with full namespace changes
+            const oldFullName = `${oldNamespace}\\${oldClassName}`;
+            const newFullName = `${newNamespace}\\${newClassName}`;
+            newText = newText.replace(new RegExp(`\\b${oldFullName.replace(/\\/g, '\\\\')}\\b`, 'g'), newFullName);
+        } else {
+            // For other references, just update the class name
+            newText = newText.replace(new RegExp(`\\b${oldClassName}\\b`, 'g'), newClassName);
+        }
+
+        if (newText !== line.text) {
+            const range = new vscode.Range(ref.line, 0, ref.line, line.text.length);
+            edits.push(vscode.TextEdit.replace(range, newText));
+        }
     }
 
     // Apply all edits
@@ -366,6 +432,37 @@ async function updateReferences(references: ReferenceLocation[], oldClassName: s
     }
 
     await vscode.workspace.applyEdit(workspaceEdit);
+}
+
+function getNamespaceFromPath(filePath: string): string | null {
+    const config = vscode.workspace.getConfiguration('phpRefactor');
+    const rootNamespace = config.get<string>('rootNamespace', 'App');
+    const srcDirectory = config.get<string>('srcDirectory', 'app');
+    
+    // Normalize the path
+    const normalizedPath = filePath.replace(/\\/g, '/');
+    
+    // Find the src directory in the path
+    const srcIndex = normalizedPath.toLowerCase().indexOf('/' + srcDirectory.toLowerCase() + '/');
+    if (srcIndex === -1) {
+        return null;
+    }
+    
+    // Extract the path after the src directory
+    const relativePath = normalizedPath.substring(srcIndex + srcDirectory.length + 2);
+    const directoryPath = path.dirname(relativePath);
+    
+    if (directoryPath === '.' || directoryPath === '') {
+        return rootNamespace;
+    }
+    
+    // Convert directory path to namespace
+    const namespaceParts = directoryPath.split('/').filter(part => part.length > 0);
+    return rootNamespace + '\\' + namespaceParts.join('\\');
+}
+
+function getExpectedNamespace(filePath: string): string | null {
+    return getNamespaceFromPath(filePath);
 }
 
 export function deactivate() { } 

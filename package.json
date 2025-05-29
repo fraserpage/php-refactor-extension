@@ -2,7 +2,7 @@
     "name": "php-refactor-extension",
     "displayName": "PHP Refactor Helper",
     "description": "Automatically updates PHP class names and references when files are renamed or moved",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "publisher": "fraserpage",
     "license": "MIT",
     "repository": {
@@ -92,6 +92,21 @@
                         ]
                     },
                     "description": "Directory patterns for Laravel component types"
+                },
+                "phpRefactor.updateNamespaces": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Automatically update namespace declarations when files are moved to different directories"
+                },
+                "phpRefactor.rootNamespace": {
+                    "type": "string",
+                    "default": "App",
+                    "description": "The root namespace for your PHP project (e.g., 'App' for Laravel)"
+                },
+                "phpRefactor.srcDirectory": {
+                    "type": "string",
+                    "default": "app",
+                    "description": "The source directory containing your PHP classes (e.g., 'app' for Laravel, 'src' for other projects)"
                 }
             }
         }
