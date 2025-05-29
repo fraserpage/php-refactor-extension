@@ -50,6 +50,48 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Show notifications when refactoring is performed"
+                },
+                "phpRefactor.enableLaravelConventions": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Apply Laravel naming conventions based on directory structure (e.g., add 'Controller' suffix in Controllers directory)"
+                },
+                "phpRefactor.laravelDirectories": {
+                    "type": "object",
+                    "default": {
+                        "controllers": [
+                            "Controllers",
+                            "Http/Controllers"
+                        ],
+                        "models": [
+                            "Models"
+                        ],
+                        "requests": [
+                            "Requests",
+                            "Http/Requests"
+                        ],
+                        "jobs": [
+                            "Jobs"
+                        ],
+                        "events": [
+                            "Events"
+                        ],
+                        "listeners": [
+                            "Listeners"
+                        ],
+                        "middleware": [
+                            "Middleware",
+                            "Http/Middleware"
+                        ],
+                        "resources": [
+                            "Resources",
+                            "Http/Resources"
+                        ],
+                        "policies": [
+                            "Policies"
+                        ]
+                    },
+                    "description": "Directory patterns for Laravel component types"
                 }
             }
         }

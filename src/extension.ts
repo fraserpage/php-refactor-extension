@@ -164,22 +164,79 @@ async function performRefactoring(uri: vscode.Uri, oldClassName: string, newClas
 
 function getClassNameFromFileName(filePath: string): string {
     const basename = path.basename(filePath, '.php');
+    const directory = path.dirname(filePath);
     
     // If the filename contains hyphens, underscores, or dots, convert to PascalCase
     if (basename.includes('-') || basename.includes('_') || basename.includes('.')) {
-        return basename
+        const converted = basename
             .split(/[-_.]+/)
             .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
             .join('');
+        return applyLaravelConventions(converted, directory);
     }
     
     // If the filename is all lowercase, capitalize the first letter
     if (basename === basename.toLowerCase()) {
-        return basename.charAt(0).toUpperCase() + basename.slice(1);
+        const capitalized = basename.charAt(0).toUpperCase() + basename.slice(1);
+        return applyLaravelConventions(capitalized, directory);
     }
     
     // If the filename already has mixed case (likely PascalCase), return as-is
-    return basename;
+    return applyLaravelConventions(basename, directory);
+}
+
+function applyLaravelConventions(className: string, directory: string): string {
+    const config = vscode.workspace.getConfiguration('phpRefactor');
+    const enableLaravelConventions = config.get<boolean>('enableLaravelConventions', true);
+    
+    if (!enableLaravelConventions) {
+        return className;
+    }
+    
+    // Laravel naming conventions based on directory structure
+    if (directory.includes('/Controllers') || directory.includes('\\Controllers')) {
+        // Controllers should end with "Controller"
+        if (!className.endsWith('Controller')) {
+            return className + 'Controller';
+        }
+    } else if (directory.includes('/Requests') || directory.includes('\\Requests')) {
+        // Form Requests should end with "Request"
+        if (!className.endsWith('Request')) {
+            return className + 'Request';
+        }
+    } else if (directory.includes('/Jobs') || directory.includes('\\Jobs')) {
+        // Jobs should end with "Job"
+        if (!className.endsWith('Job')) {
+            return className + 'Job';
+        }
+    } else if (directory.includes('/Events') || directory.includes('\\Events')) {
+        // Events should end with "Event"
+        if (!className.endsWith('Event')) {
+            return className + 'Event';
+        }
+    } else if (directory.includes('/Listeners') || directory.includes('\\Listeners')) {
+        // Listeners should end with "Listener"
+        if (!className.endsWith('Listener')) {
+            return className + 'Listener';
+        }
+    } else if (directory.includes('/Middleware') || directory.includes('\\Middleware')) {
+        // Middleware should end with "Middleware"
+        if (!className.endsWith('Middleware')) {
+            return className + 'Middleware';
+        }
+    } else if (directory.includes('/Resources') || directory.includes('\\Resources')) {
+        // Resources should end with "Resource"
+        if (!className.endsWith('Resource')) {
+            return className + 'Resource';
+        }
+    } else if (directory.includes('/Policies') || directory.includes('\\Policies')) {
+        // Policies should end with "Policy"
+        if (!className.endsWith('Policy')) {
+            return className + 'Policy';
+        }
+    }
+    
+    return className;
 }
 
 function extractPHPClass(content: string): PHPClass | null {
@@ -246,7 +303,7 @@ async function findClassReferences(className: string): Promise<ReferenceLocation
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
 
-            // Look for various types of references
+            // Standard PHP patterns
             const patterns = [
                 new RegExp(`\\b${className}::`), // Static calls
                 new RegExp(`\\bnew\\s+${className}\\b`), // Constructor calls
@@ -254,6 +311,13 @@ async function findClassReferences(className: string): Promise<ReferenceLocation
                 new RegExp(`\\bextends\\s+${className}\\b`), // Inheritance
                 new RegExp(`\\bimplements\\s+[^{]*\\b${className}\\b`), // Interface implementation
                 new RegExp(`\\b${className}\\s*\\(`), // Function-style calls
+                
+                // Laravel-specific patterns
+                new RegExp(`\\[${className}::class,`), // Route definitions: [UserController::class, 'method']
+                new RegExp(`${className}::class`), // Class constants: User::class
+                new RegExp(`'${className}'`), // String references in config, views, etc.
+                new RegExp(`"${className}"`), // Double-quoted string references
+                new RegExp(`\\$${className.toLowerCase()}`), // Variable names based on class (loose match)
             ];
 
             for (const pattern of patterns) {
@@ -265,6 +329,7 @@ async function findClassReferences(className: string): Promise<ReferenceLocation
                         column: match.index || 0,
                         text: line.trim()
                     });
+                    break; // Only count one match per line to avoid duplicates
                 }
             }
         }

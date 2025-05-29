@@ -49,6 +49,55 @@ Access settings via `File > Preferences > Settings` and search for "PHP Refactor
 
 - `phpRefactor.autoUpdate`: Automatically update class names and references without prompting (default: false)
 - `phpRefactor.showNotifications`: Show notifications when refactoring is performed (default: true)
+- `phpRefactor.enableLaravelConventions`: Apply Laravel naming conventions based on directory structure (default: true)
+- `phpRefactor.laravelDirectories`: Configure Laravel component directory patterns
+
+## Laravel Integration
+
+This extension includes special support for Laravel projects:
+
+### **Laravel Naming Conventions**
+Automatically applies Laravel naming conventions based on directory structure:
+
+- **Controllers** (`/Controllers/`): Adds "Controller" suffix
+  - `user.php` → `UserController`
+  - `user-profile.php` → `UserProfileController`
+
+- **Form Requests** (`/Requests/`): Adds "Request" suffix
+  - `store-user.php` → `StoreUserRequest`
+
+- **Jobs** (`/Jobs/`): Adds "Job" suffix  
+  - `process-payment.php` → `ProcessPaymentJob`
+
+- **Events** (`/Events/`): Adds "Event" suffix
+  - `user-registered.php` → `UserRegisteredEvent`
+
+- **Listeners** (`/Listeners/`): Adds "Listener" suffix
+  - `send-welcome-email.php` → `SendWelcomeEmailListener`
+
+- **Middleware** (`/Middleware/`): Adds "Middleware" suffix
+  - `authenticate.php` → `AuthenticateMiddleware`
+
+- **Resources** (`/Resources/`): Adds "Resource" suffix
+  - `user.php` → `UserResource`
+
+- **Policies** (`/Policies/`): Adds "Policy" suffix
+  - `user.php` → `UserPolicy`
+
+### **Laravel Reference Detection**
+Finds and updates Laravel-specific patterns:
+- Route definitions: `[UserController::class, 'method']`
+- Class constants: `User::class`
+- String references in config files and views
+- Variable names based on class names
+
+### **Disable Laravel Features**
+If you're not using Laravel, disable the conventions:
+```json
+{
+  "phpRefactor.enableLaravelConventions": false
+}
+```
 
 ## Examples
 
